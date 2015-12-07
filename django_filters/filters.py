@@ -17,7 +17,7 @@ from .fields import (
 
 __all__ = [
     'Filter', 'CharFilter', 'BooleanFilter', 'ChoiceFilter',
-    'TypedChoiceFilter', 'MultipleChoiceFilter', 'DateFilter',
+    'TypedChoiceFilter', "UUIDFilter", 'MultipleChoiceFilter', 'DateFilter',
     'DateTimeFilter', 'IsoDateTimeFilter', 'TimeFilter', 'ModelChoiceFilter',
     'ModelMultipleChoiceFilter', 'NumberFilter', 'NumericRangeFilter', 'RangeFilter',
     'DateRangeFilter', 'DateFromToRangeFilter', 'TimeRangeFilter',
