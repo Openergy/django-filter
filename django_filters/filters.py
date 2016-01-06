@@ -17,7 +17,7 @@ from .fields import (
 
 __all__ = [
     'Filter', 'CharFilter', 'BooleanFilter', 'ChoiceFilter',
-    'TypedChoiceFilter', 'MultipleChoiceFilter', 'DateFilter',
+    'TypedChoiceFilter', "UUIDFilter", 'MultipleChoiceFilter', 'DateFilter',
     'DateTimeFilter', 'IsoDateTimeFilter', 'TimeFilter', 'ModelChoiceFilter',
     'ModelMultipleChoiceFilter', 'NumberFilter', 'NumericRangeFilter', 'RangeFilter',
     'DateRangeFilter', 'DateFromToRangeFilter', 'TimeRangeFilter',
@@ -84,9 +84,9 @@ class Filter(object):
             lookup = self.lookup_type
         if value in ([], (), {}, None, ''):
             return qs
-        qs = self.get_method(qs)(**{'%s__%s' % (self.name, lookup): value})
         if self.distinct:
             qs = qs.distinct()
+        qs = self.get_method(qs)(**{'%s__%s' % (self.name, lookup): value})
         return qs
 
 
@@ -97,11 +97,6 @@ class CharFilter(Filter):
 class BooleanFilter(Filter):
     field_class = forms.NullBooleanField
 
-    def filter(self, qs, value):
-        if value is not None:
-            return self.get_method(qs)(**{self.name: value})
-        return qs
-
 
 class ChoiceFilter(Filter):
     field_class = forms.ChoiceField
@@ -109,6 +104,10 @@ class ChoiceFilter(Filter):
 
 class TypedChoiceFilter(Filter):
     field_class = forms.TypedChoiceField
+
+
+class UUIDFilter(Filter):
+    field_class = forms.UUIDField
 
 
 class MultipleChoiceFilter(Filter):
@@ -285,7 +284,10 @@ class DateRangeFilter(ChoiceFilter):
             value = int(value)
         except (ValueError, TypeError):
             value = ''
-        return self.options[value][1](qs, self.name)
+        qs = self.options[value][1](qs, self.name)
+        if self.distinct:
+            qs = qs.distinct()
+        return qs
 
 
 class DateFromToRangeFilter(RangeFilter):

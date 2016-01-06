@@ -3,39 +3,24 @@ from __future__ import unicode_literals
 
 import types
 import copy
+import re
+from collections import OrderedDict
 
 from django import forms
 from django.forms.forms import NON_FIELD_ERRORS
 from django.core.validators import EMPTY_VALUES
 from django.db import models
+from django.db.models.constants import LOOKUP_SEP
 from django.db.models.fields import FieldDoesNotExist
+from django.db.models.fields.related import ForeignObjectRel
 from django.utils import six
 from django.utils.text import capfirst
 from django.utils.translation import ugettext as _
 from sys import version_info
 
-try:
-    from django.db.models.constants import LOOKUP_SEP
-except ImportError:  # pragma: nocover
-    # Django < 1.5 fallback
-    from django.db.models.sql.constants import LOOKUP_SEP  # noqa
-
-try:
-    from collections import OrderedDict
-except ImportError:  # pragma: nocover
-    # Django < 1.5 fallback
-    from django.utils.datastructures import SortedDict as OrderedDict  # noqa
-
-try:
-    from django.db.models.related import RelatedObject as ForeignObjectRel
-except ImportError:  # pragma: nocover
-    # Django >= 1.8 replaces RelatedObject with ForeignObjectRel
-    from django.db.models.fields.related import ForeignObjectRel
-
-
 from .filters import (Filter, CharFilter, BooleanFilter,
     ChoiceFilter, DateFilter, DateTimeFilter, TimeFilter, ModelChoiceFilter,
-    ModelMultipleChoiceFilter, NumberFilter)
+    ModelMultipleChoiceFilter, NumberFilter, UUIDFilter)
 
 
 ORDER_BY_FIELD = 'o'
@@ -299,11 +284,18 @@ FILTER_FOR_DBFIELD_DEFAULTS = {
     models.IPAddressField: {
         'filter_class': CharFilter,
     },
+    models.GenericIPAddressField: {
+        'filter_class': CharFilter,
+    },
     models.CommaSeparatedIntegerField: {
         'filter_class': CharFilter,
     },
 }
 
+if hasattr(models, "UUIDField"):
+    FILTER_FOR_DBFIELD_DEFAULTS[models.UUIDField] = {
+        'filter_class': UUIDFilter,
+    }
 
 class BaseFilterSet(object):
     filter_overrides = {}
@@ -335,7 +327,7 @@ class BaseFilterSet(object):
             yield obj
 
     def __len__(self):
-        return len(self.qs)
+        return self.qs.count()
 
     def __getitem__(self, key):
         return self.qs[key]
@@ -428,8 +420,8 @@ class BaseFilterSet(object):
                 choices = []
                 for f, fltr in self.filters.items():
                     choices.extend([
-                        (fltr.name or f, fltr.label or capfirst(f)),
-                        ("-%s" % (fltr.name or f), _('%s (descending)' % (fltr.label or capfirst(f))))
+                        (f, fltr.label or capfirst(f)),
+                        ("-%s" % (f), _('%s (descending)' % (fltr.label or capfirst(f))))
                     ])
             return forms.ChoiceField(label=_("Ordering"), required=False,
                                      choices=choices)
@@ -441,6 +433,15 @@ class BaseFilterSet(object):
         return self._ordering_field
 
     def get_order_by(self, order_choice):
+        re_ordering_field = re.compile(r'(?P<inverse>\-?)(?P<field>.*)')
+        m = re.match(re_ordering_field, order_choice)
+        inverted  = m.group('inverse')
+        filter_api_name = m.group('field')
+
+        _filter = self.filters.get(filter_api_name, None)
+
+        if _filter and filter_api_name != _filter.name:
+            return [inverted + _filter.name]
         return [order_choice]
 
     @classmethod
